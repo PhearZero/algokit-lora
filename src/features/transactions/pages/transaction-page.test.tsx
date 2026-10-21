@@ -15,6 +15,8 @@ import { base64ToBytes } from '@/utils/base64-to-bytes'
 import { transactionResultsAtom } from '../data'
 import { HttpError } from '@/tests/errors'
 import { logicsigLabel } from '../components/logicsig-details'
+import { logicsigEvmAddressLabel, logicsigKnownAsLabel, logicsigTemplateIdLabel } from '@/features/programs/components/labels'
+import { makeXChainProgram } from '@node-toolkit/programs/lsig'
 import { createReadOnlyAtomAndTimestamp, createTimestamp } from '@/features/common/data'
 import {
   transactionVisualTableTabLabel,
@@ -402,6 +404,53 @@ describe('transaction-page', () => {
           const tealTab = component.getByRole('tabpanel', { name: tealProgramTabLabel })
           await waitFor(() => expect(tealTab.getAttribute('data-state'), 'Teal tab should be active').toBe('active'))
           expect(tealTab.textContent).toBe(teal)
+        }
+      )
+    })
+
+    it('should show the template ID and no known name for an unknown program', () => {
+      const myStore = createStore()
+      myStore.set(transactionResultsAtom, new Map([[transaction.id, createReadOnlyAtomAndTimestamp(transaction)]]))
+
+      return executeComponentTest(
+        () => {
+          return render(<TransactionPage />, undefined, myStore)
+        },
+        async (component) => {
+          await waitFor(() =>
+            expect(getByDescriptionTerm(component.container, logicsigTemplateIdLabel).textContent).toMatch(/^[0-9a-f]{16}$/)
+          )
+          expect(queryByDescriptionTerm(component.container, logicsigKnownAsLabel)).toBeNull()
+        }
+      )
+    })
+  })
+
+  describe('when rendering a transaction signed by a known logicsig', () => {
+    const evmAddress = '0x1111111111111111111111111111111111111111'
+    const transaction = transactionResultMother
+      .payment()
+      .withSignature({ logicsig: { logic: makeXChainProgram(evmAddress) } })
+      .build()
+
+    beforeEach(() => {
+      vi.mocked(useParams).mockImplementation(() => ({ transactionId: transaction.id }))
+    })
+
+    it('should show what the logicsig is and the key it embeds', () => {
+      const myStore = createStore()
+      myStore.set(transactionResultsAtom, new Map([[transaction.id, createReadOnlyAtomAndTimestamp(transaction)]]))
+
+      return executeComponentTest(
+        () => {
+          return render(<TransactionPage />, undefined, myStore)
+        },
+        async (component) => {
+          await waitFor(() =>
+            expect(getByDescriptionTerm(component.container, logicsigKnownAsLabel).textContent).toBe('xChain EVM account')
+          )
+          expect(getByDescriptionTerm(component.container, logicsigEvmAddressLabel).textContent).toBe(evmAddress)
+          expect(getByDescriptionTerm(component.container, logicsigTemplateIdLabel).textContent).toMatch(/^[0-9a-f]{16}$/)
         }
       )
     })

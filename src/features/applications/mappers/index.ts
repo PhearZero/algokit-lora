@@ -40,11 +40,13 @@ export const asApplicationSummary = (application: ApplicationResult): Applicatio
 export const asApplication = (
   application: ApplicationResult,
   metadata: ApplicationMetadataResult,
-  appSpec?: Arc56Contract
+  appSpec?: Arc56Contract,
+  knownAs?: string
 ): Application => {
   return {
     id: application.id,
     name: metadata?.name,
+    knownAs,
     creator: application.params.creator?.toString() ?? ZERO_ADDRESS,
     account: getApplicationAddress(application.id).toString(),
     version: application.params.version ?? 0,

@@ -9,6 +9,8 @@ import { indexer } from '@/features/common/data/algo-client'
 import { TransactionResult } from '@/features/transactions/data/types'
 import { uint8ArrayToBase64 } from '@/utils/uint8-array-to-base64'
 import { indexerTransactionToTransactionResult } from '@/features/transactions/mappers/indexer-transaction-mappers'
+import { addKnownLogicsigNames } from '@/features/programs/data/known-address-names'
+import { addCreatedApplications } from '@/features/programs/data/known-application-names'
 
 export const getBlockAndExtractData = async (round: Round) => {
   // We  use indexer instead of algod, as algod might not have the full history of blocks
@@ -87,6 +89,8 @@ export const addStateExtractedFromBlocksAtom = atom(
         })
         return next
       })
+      addKnownLogicsigNames(set, transactionResultsToAdd)
+      addCreatedApplications(set, transactionResultsToAdd)
     }
 
     if (groupResults.length > 0) {

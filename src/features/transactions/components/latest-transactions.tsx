@@ -4,11 +4,13 @@ import { Card, CardContent } from '@/features/common/components/card'
 import { ellipseId } from '@/utils/ellipse-id'
 import { DescriptionList } from '@/features/common/components/description-list'
 import { ArrowRightLeft, Info } from 'lucide-react'
-import { TransactionSummary } from '@/features/transactions/models'
+import { TransactionSummary, TransactionType } from '@/features/transactions/models'
 import { useLoadableReverseLookupNfdResult } from '@/features/nfd/data'
 import { ellipseAddress } from '@/utils/ellipse-address'
 import { RenderLoadable } from '@/features/common/components/render-loadable'
 import { TransactionTypeBadge } from './transaction-type-badge'
+import { useKnownAddressName } from '@/features/programs/data/known-address-names'
+import { useKnownApplicationName } from '@/features/programs/data/known-application-names'
 
 export const latestTransactionsTitle = 'Latest Transactions'
 
@@ -16,13 +18,23 @@ type Props = {
   latestTransactions: TransactionSummary[]
 }
 
+// Known application accounts and logic signature accounts are named the same way as NFDs, unless they have an NFD.
 function TransactionAddress({ address }: { address: string }) {
   const loadableNfd = useLoadableReverseLookupNfdResult(address)
+  const knownName = useKnownAddressName(address)
+  const fallback = knownName ? <span title={address}>{knownName}</span> : ellipseAddress(address)
   return (
-    <RenderLoadable loadable={loadableNfd} fallback={ellipseAddress(address)}>
-      {(nfd) => (nfd ? nfd.name : ellipseAddress(address))}
+    <RenderLoadable loadable={loadableNfd} fallback={fallback}>
+      {(nfd) => (nfd ? nfd.name : fallback)}
     </RenderLoadable>
   )
+}
+
+// Known applications are named in place of their ID, with the ID on hover.
+function TransactionApplication({ applicationId }: { applicationId: bigint }) {
+  const knownName = useKnownApplicationName(applicationId)
+  const id = applicationId.toString()
+  return knownName ? <span title={id}>{knownName}</span> : id
 }
 
 export function LatestTransactions({ latestTransactions }: Props) {
@@ -53,6 +65,8 @@ export function LatestTransactions({ latestTransactions }: Props) {
                           dd:
                             transaction.to && typeof transaction.to === 'string' ? (
                               <TransactionAddress address={transaction.to} />
+                            ) : transaction.to && transaction.type === TransactionType.AppCall ? (
+                              <TransactionApplication applicationId={BigInt(transaction.to)} />
                             ) : (
                               transaction.to
                             ),

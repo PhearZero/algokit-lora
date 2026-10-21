@@ -8,6 +8,8 @@ import { DEFAULT_FETCH_SIZE } from '@/features/common/constants'
 import { indexer } from '@/features/common/data/algo-client'
 import { TransactionResult } from '@/features/transactions/data/types'
 import { indexerTransactionToTransactionResult } from '@/features/transactions/mappers/indexer-transaction-mappers'
+import { addKnownLogicsigNames } from '@/features/programs/data/known-address-names'
+import { addCreatedApplications } from '@/features/programs/data/known-application-names'
 
 const getAccountTransactionResults = async (address: Address, nextPageToken?: string) => {
   const results = await indexer
@@ -35,6 +37,8 @@ const createSyncEffect = (transactionResults: TransactionResult[]) => {
           })
           return next
         })
+        addKnownLogicsigNames(set, transactionResults)
+        addCreatedApplications(set, transactionResults)
       } catch {
         // Ignore any errors as there is nothing to sync
       }

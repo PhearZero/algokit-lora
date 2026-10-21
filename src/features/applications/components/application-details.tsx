@@ -26,6 +26,7 @@ import {
   applicationGlobalStateLabel,
   applicationLocalStateLabel,
   applicationAbiMethodDefinitionsLabel,
+  applicationKnownAsLabel,
 } from './labels'
 import { ApplicationStateTable } from './application-state-table'
 import { ApplicationLocalState } from './application-local-state'
@@ -70,6 +71,14 @@ export function ApplicationDetails({ application }: Props) {
             {
               dt: applicationNameLabel,
               dd: application.name,
+            },
+          ]
+        : []),
+      ...(application.knownAs
+        ? [
+            {
+              dt: applicationKnownAsLabel,
+              dd: application.knownAs,
             },
           ]
         : []),
@@ -122,6 +131,7 @@ export function ApplicationDetails({ application }: Props) {
       application.id,
       application.isDeleted,
       application.name,
+      application.knownAs,
       application.creator,
       application.account,
       application.version,

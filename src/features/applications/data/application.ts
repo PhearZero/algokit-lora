@@ -7,6 +7,9 @@ import { applicationResultsAtom, getApplicationResultAtom } from './application-
 import { getApplicationMetadataResultAtom } from './application-metadata'
 import { atomEffect } from 'jotai-effect'
 import { createAppSpecAtom } from './application-method-definitions'
+import { settingsStore } from '@/features/settings/data'
+import { selectedNetworkAtomId } from '@/features/network/data'
+import { getKnownApplicationName } from '@/features/programs/data/known-application-names'
 
 const createApplicationAtoms = (applicationId: ApplicationId) => {
   const isStaleAtom = atom(false)
@@ -22,7 +25,8 @@ const createApplicationAtoms = (applicationId: ApplicationId) => {
       const applicationMetadata = await get(getApplicationMetadataResultAtom(applicationResult))
       const appSpec = await get(createAppSpecAtom(applicationId))
       get(detectIsStaleEffect)
-      return asApplication(applicationResult, applicationMetadata, appSpec ? asArc56AppSpec(appSpec) : undefined)
+      const knownAs = await getKnownApplicationName(get, applicationResult, settingsStore.get(selectedNetworkAtomId))
+      return asApplication(applicationResult, applicationMetadata, appSpec ? asArc56AppSpec(appSpec) : undefined, knownAs)
     }),
     isStaleAtom,
   ] as const

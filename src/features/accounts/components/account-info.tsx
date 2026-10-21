@@ -25,6 +25,12 @@ import { CopyButton } from '@/features/common/components/copy-button'
 import { useLoadableReverseLookupNfdResult } from '@/features/nfd/data'
 import { OpenAddressQRDialogButton } from '@/features/accounts/components/address-qr-dialog-button'
 import { useLoadableAccountSignatureType } from '../data/account-signature-type'
+import { useLoadableAccountLogicsig } from '../data/account-logicsig'
+import { asKnownLogicsigItems } from '@/features/programs/components/known-logicsig-items'
+import { asKnownApplicationAccount } from '@/features/programs/mappers'
+import { logicsigApplicationLabel, logicsigKnownAsLabel } from '@/features/programs/components/labels'
+import { ApplicationLink } from '@/features/applications/components/application-link'
+import { useSelectedNetwork } from '@/features/network/data'
 
 type Props = {
   account: Account
@@ -33,6 +39,9 @@ type Props = {
 export function AccountInfo({ account }: Props) {
   const loadableNfd = useLoadableReverseLookupNfdResult(account.address, true)
   const loadableSignatureType = useLoadableAccountSignatureType(account.address)
+  const loadableLogicsig = useLoadableAccountLogicsig(account.address, account.rekeyedTo !== undefined)
+  const [selectedNetwork] = useSelectedNetwork()
+  const knownApplication = useMemo(() => asKnownApplicationAccount(account.address, selectedNetwork), [account.address, selectedNetwork])
 
   const accountInfoItems = useMemo(() => {
     const items = [
@@ -62,6 +71,13 @@ export function AccountInfo({ account }: Props) {
             },
           ]
         : []),
+      ...(knownApplication
+        ? [
+            { dt: logicsigKnownAsLabel, dd: `${knownApplication.name} account` },
+            { dt: logicsigApplicationLabel, dd: <ApplicationLink applicationId={knownApplication.applicationId} showCopyButton={true} /> },
+          ]
+        : []),
+      ...(loadableLogicsig.state === 'hasData' && loadableLogicsig.data !== null ? asKnownLogicsigItems(loadableLogicsig.data) : []),
       ...(loadableNfd.state === 'hasData' && loadableNfd.data !== null
         ? [
             {
@@ -116,6 +132,8 @@ export function AccountInfo({ account }: Props) {
     account.rekeyedTo,
     loadableNfd,
     loadableSignatureType,
+    loadableLogicsig,
+    knownApplication,
   ])
   return (
     <Card aria-label={accountInformationLabel}>

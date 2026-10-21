@@ -1,6 +1,7 @@
 export const applicationDetailsLabel = 'Application Details'
 export const applicationIdLabel = 'Application ID'
 export const applicationNameLabel = 'Application Name'
+export const applicationKnownAsLabel = 'Known As'
 export const applicationCreatorAccountLabel = 'Creator'
 export const applicationAccountLabel = 'Account'
 export const applicationVersionLabel = 'Version'

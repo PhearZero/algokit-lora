@@ -8,6 +8,8 @@ import { applicationMetadataResultsAtom } from '@/features/applications/data/app
 import { applicationResultsAtom } from '@/features/applications/data'
 import { assetMetadataResultsAtom, assetResultsAtom } from '@/features/assets/data'
 import { forwardNfdResultsAtom, reverseNfdsAtom } from '@/features/nfd/data'
+import { knownLogicsigNamesAtom } from '@/features/programs/data/known-address-names'
+import { applicationCreationsAtom, createdApplicationsAtom } from '@/features/programs/data/known-application-names'
 
 const cleanUpIntervalMillis = 600_000 // 10 minutes
 export const cachedDataExpirationMillis = 1_800_000 // 30 minutes
@@ -36,6 +38,9 @@ const stateCleanupEffect = atomEffect((get, set) => {
     removeExpired(assetResultsAtom)
     removeExpired(forwardNfdResultsAtom)
     removeExpired(reverseNfdsAtom)
+    removeExpired(knownLogicsigNamesAtom)
+    removeExpired(createdApplicationsAtom)
+    removeExpired(applicationCreationsAtom)
   }, cleanUpIntervalMillis)
 
   return () => clearInterval(cleanup)

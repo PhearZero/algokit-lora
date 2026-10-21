@@ -10,6 +10,8 @@ export type ApplicationSummary = {
 export type Application = {
   id: ApplicationId
   name?: string
+  /** The name of a known application, recognised by @node-toolkit/programs (e.g. `Tinyman v2 validator`). */
+  knownAs?: string
   account: string
   creator: string
   version: number

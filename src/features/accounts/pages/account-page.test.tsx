@@ -7,7 +7,8 @@ import { createReadOnlyAtomAndTimestamp } from '@/features/common/data'
 import { accountResultMother } from '@/tests/object-mother/account-result'
 import { createStore } from 'jotai'
 import { descriptionListAssertion } from '@/tests/assertions/description-list-assertion'
-import { queryByDescriptionTerm } from '@/tests/custom-queries/get-description'
+import { getByDescriptionTerm, queryByDescriptionTerm } from '@/tests/custom-queries/get-description'
+import { encodeAddress } from 'algosdk'
 import { accountResultsAtom, accountSignatureTypesAtom } from '../data'
 import {
   accountAddressLabel,
@@ -34,6 +35,34 @@ import { nfdResultMother } from '@/tests/object-mother/nfd-result'
 import { atom } from 'jotai'
 import { forwardNfdResultsAtom, reverseNfdsAtom } from '@/features/nfd/data'
 import { defaultNetworkConfigs, localnetId, useSetCustomNetworkConfig } from '@/features/network/data'
+import { programAddress } from '@node-toolkit/core'
+import { makeHybridProgram, makeXChainProgram } from '@node-toolkit/programs/lsig'
+import {
+  logicsigEd25519AccountLabel,
+  logicsigEvmAddressLabel,
+  logicsigKnownAsLabel,
+  logicsigTemplateIdLabel,
+} from '@/features/programs/components/labels'
+
+const mockLogicsigSearch = (logic?: Uint8Array) => {
+  const search = {
+    address: vi.fn(),
+    addressRole: vi.fn(),
+    sigType: vi.fn(),
+    limit: vi.fn(),
+    minRound: vi.fn(),
+    maxRound: vi.fn(),
+    do: vi.fn().mockResolvedValue({ transactions: logic ? [{ signature: { logicsig: { logic } } }] : [] }),
+  }
+  search.address.mockReturnValue(search)
+  search.addressRole.mockReturnValue(search)
+  search.sigType.mockReturnValue(search)
+  search.limit.mockReturnValue(search)
+  search.minRound.mockReturnValue(search)
+  search.maxRound.mockReturnValue(search)
+  vi.mocked(indexer.searchForTransactions).mockReturnValue(search as unknown as ReturnType<typeof indexer.searchForTransactions>)
+  return search
+}
 
 vi.mock('@/features/common/data/algo-client', async () => {
   const original = await vi.importActual('@/features/common/data/algo-client')
@@ -48,6 +77,7 @@ vi.mock('@/features/common/data/algo-client', async () => {
           do: vi.fn().mockResolvedValue({ account: {} }),
         }),
       }),
+      searchForTransactions: vi.fn(),
     },
   }
 })
@@ -256,6 +286,134 @@ describe('account-page', () => {
               ],
             })
           })
+        }
+      )
+    })
+  })
+
+  describe('when rendering an xChain logicsig account', () => {
+    const evmAddress = '0x1111111111111111111111111111111111111111'
+    const program = makeXChainProgram(evmAddress)
+    const accountResult = {
+      ...accountResultMother['mainnet-DHMCHBN4W5MBO72C3L3ZP6GGJHQ4OR6SW2EP3VDEJ5VHT4MERQLCTVW6PU']().build(),
+      address: programAddress(program),
+    }
+
+    it('should be rendered with what the logicsig is and its EVM address', () => {
+      const myStore = createStore()
+      myStore.set(accountResultsAtom, new Map([[accountResult.address, createReadOnlyAtomAndTimestamp(accountResult)]]))
+      myStore.set(accountSignatureTypesAtom, new Map([[accountResult.address, createReadOnlyAtomAndTimestamp('lsig' as const)]]))
+      const search = mockLogicsigSearch(program)
+
+      vi.mocked(useParams).mockImplementation(() => ({ address: accountResult.address }))
+
+      return executeComponentTest(
+        () => render(<AccountPage />, undefined, myStore),
+        async (component) => {
+          await waitFor(() => {
+            const informationCard = component.getByLabelText(accountInformationLabel)
+            descriptionListAssertion({
+              container: informationCard,
+              items: [
+                { term: accountAddressLabel, description: accountResult.address },
+                { term: accountSignatureTypeLabel, description: 'LogicSig' },
+                { term: logicsigKnownAsLabel, description: 'xChain EVM account' },
+                { term: logicsigEvmAddressLabel, description: evmAddress },
+              ],
+            })
+            expect(getByDescriptionTerm(informationCard, logicsigTemplateIdLabel).textContent).toMatch(/^[0-9a-f]{16}$/)
+          })
+          expect(search.address).toHaveBeenCalledWith(accountResult.address)
+          expect(search.addressRole).toHaveBeenCalledWith('sender')
+          expect(search.sigType).toHaveBeenCalledWith('lsig')
+        }
+      )
+    })
+  })
+
+  describe('when rendering a hybrid logicsig account', () => {
+    const ed25519PK = new Uint8Array(32).fill(7)
+    const program = makeHybridProgram({ ed25519PK, falcon1024PK: new Uint8Array(1793).fill(9) })
+    const accountResult = {
+      ...accountResultMother['mainnet-DHMCHBN4W5MBO72C3L3ZP6GGJHQ4OR6SW2EP3VDEJ5VHT4MERQLCTVW6PU']().build(),
+      address: programAddress(program),
+    }
+
+    it('should be rendered with its Ed25519 signer', () => {
+      const myStore = createStore()
+      myStore.set(accountResultsAtom, new Map([[accountResult.address, createReadOnlyAtomAndTimestamp(accountResult)]]))
+      myStore.set(accountSignatureTypesAtom, new Map([[accountResult.address, createReadOnlyAtomAndTimestamp('lsig' as const)]]))
+      mockLogicsigSearch(program)
+
+      vi.mocked(useParams).mockImplementation(() => ({ address: accountResult.address }))
+
+      return executeComponentTest(
+        () => render(<AccountPage />, undefined, myStore),
+        async (component) => {
+          await waitFor(() => {
+            const informationCard = component.getByLabelText(accountInformationLabel)
+            expect(getByDescriptionTerm(informationCard, logicsigKnownAsLabel).textContent).toBe('Hybrid Ed25519 + Falcon-1024 account')
+            expect(getByDescriptionTerm(informationCard, logicsigEd25519AccountLabel).textContent).toBe(encodeAddress(ed25519PK))
+          })
+        }
+      )
+    })
+  })
+
+  describe('when rendering a rekeyed logicsig account', () => {
+    const program = makeXChainProgram('0x2222222222222222222222222222222222222222')
+    const rekeyedAccountResult = accountResultMother['mainnet-DGOANM6JL4VNSBJW737T24V4WVQINFWELRE3OKHQQFZ2JFMVKUF52D4AY4']().build()
+    const accountResult = { ...rekeyedAccountResult, address: programAddress(program) }
+
+    it('should find the program in the round the account was created', () => {
+      const myStore = createStore()
+      myStore.set(accountResultsAtom, new Map([[accountResult.address, createReadOnlyAtomAndTimestamp(accountResult)]]))
+      // The indexer clears the signature type of rekeyed accounts
+      myStore.set(accountSignatureTypesAtom, new Map([[accountResult.address, createReadOnlyAtomAndTimestamp(null)]]))
+      vi.mocked(indexer.lookupAccountByID).mockReturnValueOnce({
+        exclude: vi.fn().mockReturnValue({ do: vi.fn().mockResolvedValue({ account: { createdAtRound: 26052410n } }) }),
+      } as unknown as ReturnType<typeof indexer.lookupAccountByID>)
+      const search = mockLogicsigSearch(program)
+
+      vi.mocked(useParams).mockImplementation(() => ({ address: accountResult.address }))
+
+      return executeComponentTest(
+        () => render(<AccountPage />, undefined, myStore),
+        async (component) => {
+          await waitFor(() => {
+            const informationCard = component.getByLabelText(accountInformationLabel)
+            expect(getByDescriptionTerm(informationCard, logicsigKnownAsLabel).textContent).toBe('xChain EVM account')
+          })
+          expect(search.minRound).toHaveBeenCalledWith(26052410n)
+          expect(search.maxRound).toHaveBeenCalledWith(26052410n)
+          expect(search.sigType).not.toHaveBeenCalled()
+        }
+      )
+    })
+  })
+
+  describe('when rendering an account that signed with a delegated logicsig', () => {
+    const accountResult = accountResultMother['mainnet-DHMCHBN4W5MBO72C3L3ZP6GGJHQ4OR6SW2EP3VDEJ5VHT4MERQLCTVW6PU']().build()
+
+    it('should not show the program, as it is not the account itself', () => {
+      const myStore = createStore()
+      myStore.set(accountResultsAtom, new Map([[accountResult.address, createReadOnlyAtomAndTimestamp(accountResult)]]))
+      myStore.set(accountSignatureTypesAtom, new Map([[accountResult.address, createReadOnlyAtomAndTimestamp('lsig' as const)]]))
+      const search = mockLogicsigSearch(makeXChainProgram('0x1111111111111111111111111111111111111111'))
+
+      vi.mocked(useParams).mockImplementation(() => ({ address: accountResult.address }))
+
+      return executeComponentTest(
+        () => render(<AccountPage />, undefined, myStore),
+        async (component) => {
+          await waitFor(() => expect(search.do).toHaveBeenCalled())
+          await waitFor(() => {
+            const informationCard = component.getByLabelText(accountInformationLabel)
+            expect(getByDescriptionTerm(informationCard, accountSignatureTypeLabel).textContent).toBe('LogicSig')
+          })
+          const informationCard = component.getByLabelText(accountInformationLabel)
+          expect(queryByDescriptionTerm(informationCard, logicsigKnownAsLabel)).toBeNull()
+          expect(queryByDescriptionTerm(informationCard, logicsigTemplateIdLabel)).toBeNull()
         }
       )
     })
